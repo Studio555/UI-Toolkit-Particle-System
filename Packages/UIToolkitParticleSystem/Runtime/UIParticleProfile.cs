@@ -663,6 +663,11 @@ namespace MainraGames
         public UIParticle.ParticleEmitterAnchor Anchor = UIParticle.ParticleEmitterAnchor.Center;
 
         [BoxGroup("Position & Culling")]
+        [LabelText("Particles Follow Emitter")]
+        [Tooltip("When enabled, particles move along with the emitter's position changes.")]
+        public bool ParticlesFollowEmitter = true;
+        
+        [BoxGroup("Position & Culling")]
         [LabelText("Emitter Offset")]
         [Tooltip("Offset from the anchor position in local UI space.")]
         public Vector2 EmitterOffset = Vector2.zero;
@@ -692,6 +697,7 @@ namespace MainraGames
         [LabelText("Emission Rate Multiplier")]
         public AnimationCurve emissionRateMultiplier = Constant(1);
 
+        
 #if UNITY_EDITOR
         private void OnValidate()
         {

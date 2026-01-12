@@ -150,6 +150,7 @@ namespace MainraGames
             public YAxisMode YAxis;
             public ParticleEmitterAnchor Anchor;
             public Vector2 EmitterOffset;
+            public bool particlesFollowEmitter;
             public bool PauseWhenInvisible;
             public bool KillWhenOutside;
             public float CullPadding;
@@ -178,6 +179,7 @@ namespace MainraGames
             public float sheetStart;
             public uint spawnIndex;
             public float noiseSeedX, noiseSeedY;
+            public bool followEmitter;
         }
 
         readonly List<Particle> _particles = new();
@@ -199,7 +201,7 @@ namespace MainraGames
         Vector2 _lastEmitterOrigin;
         bool _hasLastEmitterOrigin;
         Vector2 _emitterVelocityUI;
-
+        
         float _nextBurstTime;
         int _burstCyclesLeft;
         bool _burstInit;
@@ -225,8 +227,15 @@ namespace MainraGames
         void ApplyFromProfile(bool force)
         {
             if (Profile == null) return;
-            if (!force && _lastProfileRevision == Profile.revision) return;
 
+            // Always update emitter offset - it can be changed at runtime and if !particlesFollowEmitter we need it!  
+            _cfg.EmitterOffset = Profile.EmitterOffset;    
+            
+            bool particlesFollowEmitterChanged = _cfg.particlesFollowEmitter != Profile.ParticlesFollowEmitter;
+            force = force || particlesFollowEmitterChanged;
+            
+            if (!force && _lastProfileRevision == Profile.revision) return;
+            
             _cfg.Duration              = Profile.Duration;
             _cfg.Looping               = Profile.Looping;
             _cfg.Prewarm               = Profile.Prewarm;
@@ -354,10 +363,15 @@ namespace MainraGames
             _cfg.emissionRateMultiplier= Profile.emissionRateMultiplier;
             _cfg.limitVelocityOverLifetime = Profile.UseLimitVelocityCurve ? Profile.limitVelocityOverLifetime : null;
 
+            _cfg.particlesFollowEmitter   = Profile.ParticlesFollowEmitter;
+            
             _lastProfileRevision = Profile.revision;
-
+            
             ReinitRng();
-            HandlePrewarmOrInitialBurst();
+            if (force) {
+                HandlePrewarmOrInitialBurst();    
+            } 
+            
             MarkDirtyRepaint();
         }
 
@@ -436,7 +450,7 @@ namespace MainraGames
             if (_hasLastEmitterOrigin && dt > 0f) _emitterVelocityUI = (origin - _lastEmitterOrigin) / dt;
             _lastEmitterOrigin = origin;
             _hasLastEmitterOrigin = true;
-
+            
             if (_isPlaying) _playbackTime += dt;
 
             if (_isPlaying && !_cfg.Looping && _playbackTime >= _cfg.Duration)
@@ -606,7 +620,8 @@ namespace MainraGames
 
                 if (_cfg.KillWhenOutside)
                 {
-                    Vector2 world = origin + new Vector2(p.position.x, MapYForUI(p.position.y));
+                    Vector2 simToUI = new Vector2(p.position.x, MapYForUI(p.position.y));
+                    Vector2 world = p.followEmitter ? origin + simToUI : simToUI;
                     if (!cullRect.Contains(world)) { _particles.RemoveAt(i); continue; }
                 }
 
@@ -651,7 +666,9 @@ namespace MainraGames
             for (int idx = 0; idx < _drawOrder.Count; idx++)
             {
                 var p = _particles[_drawOrder[idx]];
-                Vector2 worldPos = emitterOrigin + new Vector2(p.position.x, MapYForUI(p.position.y));
+
+                Vector2 simToUI = new Vector2(p.position.x, MapYForUI(p.position.y));
+                Vector2 worldPos = p.followEmitter ? emitterOrigin + simToUI : simToUI;
 
                 Vector2 right, up;
                 switch (_cfg.RenderMode)
@@ -837,6 +854,14 @@ namespace MainraGames
                 velocity += new Vector3(vUI.x, UnmapYFromUI(vUI.y), 0) * _cfg.InheritVelocityMultiplier;
             }
 
+            // If not following, bake the emitter origin into the particle's position at spawn (into simulation space)
+            if (!_cfg.particlesFollowEmitter)
+            {
+                var originUI = GetEmitterOrigin(contentRect);
+                position.x += originUI.x;
+                position.y += UnmapYFromUI(originUI.y);
+            }
+
             int row = 0;
             if (_cfg.TextureSheetEnabled && _cfg.SheetMode == TextureSheetMode.SingleRow && _cfg.SheetRandomRow && _cfg.SheetTilesY > 0)
                 row = _rng.Next(0, Mathf.Max(1, _cfg.SheetTilesY));
@@ -881,7 +906,8 @@ namespace MainraGames
                 sheetStart = startOffset,
                 spawnIndex = _spawnCounter++,
                 noiseSeedX = seedX,
-                noiseSeedY = seedY
+                noiseSeedY = seedY,
+                followEmitter = _cfg.particlesFollowEmitter
             };
             return p;
         }
