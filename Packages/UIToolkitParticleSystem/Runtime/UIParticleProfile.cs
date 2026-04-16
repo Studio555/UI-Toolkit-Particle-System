@@ -7,7 +7,7 @@ namespace MainraGames
     public class UIParticleProfile : ScriptableObject
     {
         // ===== hot-reload versioning (read by UIParticle) =====
-        [HideInInspector] public int revision = 0;
+        [System.NonSerialized] public int revision = 0;
 
         // ─────────────────────────────────────────────────────────────────────────
         // MAIN (arranged similar to Unity's Particle System "Main" module)
@@ -721,8 +721,6 @@ namespace MainraGames
 
             // bump revision for live-sync in UIParticle
             unchecked { revision++; }
-
-            UnityEditor.EditorUtility.SetDirty(this);
         }
 #endif
 
